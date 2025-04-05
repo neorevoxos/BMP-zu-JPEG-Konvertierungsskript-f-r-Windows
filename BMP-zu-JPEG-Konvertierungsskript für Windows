@@ -1,0 +1,47 @@
+# Debug-Modus aktivieren
+$folderPath = "C:\\Pfad\\Zu\\Deinem\\Ordner"  # Passe diesen Pfad an
+Write-Host "Prüfe Ordner: $folderPath"
+
+if (-Not (Test-Path -Path $folderPath)) {
+    Write-Host "Der Ordner existiert nicht: $folderPath" -ForegroundColor Red
+    exit 1
+}
+
+while ($true) {
+    # Hole alle BMP-Dateien (inkl. Unterordner, nur Dateien)
+    $bmpFiles = Get-ChildItem -Path $folderPath -Filter "*.bmp" -Recurse | Where-Object { -Not $_.PSIsContainer }
+    Write-Host "Gefundene BMP-Dateien: $($bmpFiles.Count)"
+
+    if (-Not $bmpFiles -or $bmpFiles.Count -eq 0) {
+        Write-Host "Keine neuen BMP-Dateien gefunden. Warte..." -ForegroundColor Yellow
+        Start-Sleep -Seconds 10  # Wartezeit vor der nächsten Überprüfung
+        continue
+    }
+
+    foreach ($file in $bmpFiles) {
+        # Verwende aktuelle Millisekunden, um Dateinamen eindeutig zu machen
+        $timestamp = (Get-Date).ToString("yyyyMMdd_HHmmss_fff")
+        $outputFileBase = [System.IO.Path]::GetFileNameWithoutExtension($file.Name) + "_" + $timestamp
+        $outputFile = Join-Path -Path $file.DirectoryName -ChildPath ($outputFileBase + ".jpg")
+        Write-Host "Konvertiere: $($file.FullName) -> $outputFile"
+
+        try {
+            $image = [System.Drawing.Image]::FromFile($file.FullName)
+            $image.Save($outputFile, [System.Drawing.Imaging.ImageFormat]::Jpeg)
+            $image.Dispose()
+            Write-Host "Erfolgreich konvertiert: $outputFile" -ForegroundColor Green
+
+            # Löschen der BMP-Datei nur bei erfolgreicher Konvertierung
+            Remove-Item -Path $file.FullName -Force
+            Write-Host "Gelöscht: $file.FullName" -ForegroundColor Cyan
+        } catch {
+            Write-Host "Fehler bei der Konvertierung von $($file.FullName): $_" -ForegroundColor Red
+        }
+
+        # Pause von 1 Sekunde zwischen den Dateien
+        Start-Sleep -Seconds 1
+    }
+
+    Write-Host "Warte auf neue Dateien..." -ForegroundColor Cyan
+    Start-Sleep -Seconds 10  # Wartezeit vor der nächsten Überprüfung
+}
